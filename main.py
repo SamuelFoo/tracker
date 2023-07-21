@@ -98,6 +98,12 @@ def getOutputVidFrameSize(vidPath, pipeline, outputHeight):
     frame = imutils.resize(frame, height=outputHeight)
     return frame.shape[-2::-1]
 
+def getFrameFromVid(vidPath, time):
+    cap = cv2.VideoCapture(vidPath)
+    cap.set(cv2.CAP_PROP_POS_MSEC, time*1000)
+    ret, frame = cap.read()
+    return frame
+
 class SelectionWindow():
 
     def __init__(self, title, frame):
