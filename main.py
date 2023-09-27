@@ -2,6 +2,15 @@ import cv2
 import imutils
 import numpy as np
 
+def showImg(img, title="Image"):
+    cv2.imshow(title, img)
+    key = cv2.waitKey(0)
+    
+    while key != ord("q") and key != ord("Q"):
+        key = cv2.waitKey(0)
+
+    cv2.destroyAllWindows()
+
 def resize(frame, maxHeight=800, maxWidth=1500):
     # If resize factor for height is greater than that of width
     if frame.shape[0]/maxHeight > frame.shape[1]/maxWidth:
@@ -63,19 +72,24 @@ def getTemplatesFromVideo(vidPath, pipeline, templateWidth, templateHeight):
     cv2.setMouseCallback('Frame', on_mouse)
 
     while cap.isOpened():
-        _, frame = cap.read()
+        ret, frame = cap.read()
+
+        if not ret:
+            break
+
         frame = pipeline(frame)
         
         cv2.imshow("Frame", frame)
         key = cv2.waitKey(0)
         if key == ord("q") or key == ord("Q"):
-            cap.release()
-            cv2.destroyAllWindows()
+            break
 
         if key == ord("e") or key == ord("E"):
             if box is not None:
                 templates.append(cropWithROI(frame, box))
 
+    cap.release()
+    cv2.destroyAllWindows()
     return templates
 
 def getTemplateMatches(frame, template, confidenceThresh):
