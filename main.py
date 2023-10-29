@@ -2,6 +2,10 @@ import cv2
 import imutils
 import numpy as np
 
+##########################
+#   Generic Functions    #
+##########################
+
 def showImg(img, title="Image"):
     cv2.imshow(title, img)
     key = cv2.waitKey(0)
@@ -118,6 +122,28 @@ def getFrameFromVid(vidPath, time):
     ret, frame = cap.read()
     return frame
 
+###############################
+#   Circle/Ellipse Fitting    #
+###############################
+
+def getCircleFromThreePoints(x1, y1, x2, y2, x3, y3):
+    a = 2*(x1*(y2-y3) - y1*(x2-x3) + x2*y3 - x3*y2)
+    centerx = (x1*x1+y1*y1)*(y2-y3) + (x2*x2+y2*y2)*(y3-y1) + (x3*x3+y3*y3)*(y1-y2)
+    centerx /= a
+    centery = (x1*x1 + y1*y1)*(x3-x2) + (x2*x2+y2*y2)*(x1-x3) + (x3*x3 + y3*y3)*(x2-x1)
+    centery /= a
+    radius = np.sqrt((centerx-x1)**2 + (centery-y1)**2)
+
+    return centerx, centery, radius
+
+def getEllipseFromPoints(pts):
+    cnt = np.array(pts).reshape((-1,1,2)).astype(np.int32)
+    ellipse = cv2.fitEllipse(cnt)
+    return ellipse
+
+def cropWithEllipse(img, ellipse):
+    
+
 class SelectionWindow():
 
     def __init__(self, title, frame):
@@ -168,3 +194,64 @@ class CalibWindow(SelectionWindow):
         p1 = self.calibPoints[-1]
         p2 = self.calibPoints[-2]
         return ((p1[0]-p2[0])**2+(p1[1]-p2[1])**2)**0.5/calibLength
+    
+# Add exception for case when three points happen to line up nicely or two or more points have the same coordinates
+class CircleCalibWindow(CalibWindow):
+    
+    def __init__(self, title, frame):
+        super().__init__(title, frame)
+        self.minPointsLeft = 3
+        self.centerx, self.centery, self.radius = 0, 0, 0
+        self.frameCopy = self.frame.copy()
+
+    def set_calib_length(self,event,x,y,flags,param):
+        if event == cv2.EVENT_LBUTTONDOWN or event == cv2.EVENT_RBUTTONDOWN:
+            self.minPointsLeft -= 1
+            self.calibPoints.append((x, y))
+            cv2.circle(self.frame, (x,y), 2, (255,0,0), thickness=1)
+            
+            if len(self.calibPoints) >= 3:
+                x1, y1, x2, y2, x3, y3 = *self.calibPoints[-3], *self.calibPoints[-2], *self.calibPoints[-1]
+                self.centerx, self.centery, self.radius = getCircleFromThreePoints(x1, y1, x2, y2, x3, y3)
+                
+                # New frame to "remove" draw circle in last frame
+                self.frame = self.frame.copy()
+
+                # Python 3.7.5: Some bug probably, round does not always convert to int
+                # print(self.centerx, self.centery, self.radius)
+                # print(round(self.centerx), round(self.centery), round(self.radius))
+                cv2.circle(self.frame, (int(round(self.centerx)),int(round(self.centery))), int(round(self.radius)), (255,0,0), thickness=1)
+            
+            cv2.imshow(self.title, self.frame)
+
+    def getCalibScale(self, calibRadius):
+        return self.radius/calibRadius
+
+    def getCircle(self):
+        return (self.centerx, self.centery, self.radius)
+
+class EllipseCalibWindow(CalibWindow):
+    
+    def __init__(self, title, frame):
+        super().__init__(title, frame)
+        self.minPointsLeft = 5
+        self.frameCopy = self.frame.copy()
+
+    def set_calib_length(self,event,x,y,flags,param):
+        if event == cv2.EVENT_LBUTTONDOWN or event == cv2.EVENT_RBUTTONDOWN:
+            self.minPointsLeft -= 1
+            self.calibPoints.append((x, y))
+            cv2.circle(self.frame, (x,y), 2, (255,0,0), thickness=1)
+            
+            if len(self.calibPoints) >= 5:
+                ellipse = getEllipseFromPoints(self.calibPoints)
+                ellipse = tuple(map(lambda l: np.round(l, decimals=0).astype(int), ellipse))
+                
+                # New frame to "remove" draw circle in last frame
+                self.frame = self.frame.copy()
+                ((centx,centy), (width,height), angle) = ellipse
+                cv2.ellipse(self.frame, (int(centx),int(centy)), (int(width/2),int(height/2)), angle, 0, 360, (0,0,255), 1)
+
+                
+
+            cv2.imshow(self.title, self.frame)
