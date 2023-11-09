@@ -141,8 +141,17 @@ def getEllipseFromPoints(pts):
     ellipse = cv2.fitEllipse(cnt)
     return ellipse
 
-def cropWithEllipse(img, ellipse):
-    
+def drawEllipse(frame, ellipse, color, thickness):
+    ((centx,centy), (width,height), angle) = ellipse
+    cv2.ellipse(frame, (int(centx),int(centy)), (int(width/2),int(height/2)), angle, 0, 360, color, thickness)
+
+def cropWithEllipse(frame, ellipse):
+    mask1 = np.zeros_like(frame[:,:,0])
+    drawEllipse(mask1, ellipse, color=(255,255,255), thickness=-1)
+    frame = cv2.bitwise_and(frame, frame, mask=mask1)
+    ellipseCnt, _ = cv2.findContours(mask1, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    roi = cv2.boundingRect(ellipseCnt[0])
+    return cropWithROI(frame, roi)
 
 class SelectionWindow():
 
@@ -236,6 +245,7 @@ class EllipseCalibWindow(CalibWindow):
         super().__init__(title, frame)
         self.minPointsLeft = 5
         self.frameCopy = self.frame.copy()
+        self.ellipse = None
 
     def set_calib_length(self,event,x,y,flags,param):
         if event == cv2.EVENT_LBUTTONDOWN or event == cv2.EVENT_RBUTTONDOWN:
@@ -244,14 +254,67 @@ class EllipseCalibWindow(CalibWindow):
             cv2.circle(self.frame, (x,y), 2, (255,0,0), thickness=1)
             
             if len(self.calibPoints) >= 5:
-                ellipse = getEllipseFromPoints(self.calibPoints)
-                ellipse = tuple(map(lambda l: np.round(l, decimals=0).astype(int), ellipse))
-                
+                self.ellipse = getEllipseFromPoints(self.calibPoints)
+
                 # New frame to "remove" draw circle in last frame
                 self.frame = self.frame.copy()
-                ((centx,centy), (width,height), angle) = ellipse
-                cv2.ellipse(self.frame, (int(centx),int(centy)), (int(width/2),int(height/2)), angle, 0, 360, (0,0,255), 1)
-
-                
+                drawEllipse(self.frame, self.ellipse, color=(255,0,0), thickness=1)
 
             cv2.imshow(self.title, self.frame)
+
+    def getEllipse(self):
+        return self.ellipse
+    
+class DrawingWindow():
+
+    def __init__(self, title, img, mask):
+        self.title = title
+        self.drawing = False # true if mouse is pressed
+        self.pt1_x , self.pt1_y = None , None
+        self.img = img
+        self.mask = mask.copy()
+        self.func = self.callback_func
+        self.display = cv2.bitwise_and(self.img, self.img, mask=self.mask)
+        self.thickness = 5
+        self.color = 0
+
+    def callback_func(self, event, x, y, flags, param):
+        # Toggle between adding and removing mask.
+        if event == cv2.EVENT_RBUTTONDOWN:
+            self.color = 255 if self.color == 0 else 0
+        
+        elif event == cv2.EVENT_LBUTTONDOWN:
+            self.drawing = True
+            self.pt1_x, self.pt1_y = x, y
+
+        elif event == cv2.EVENT_MOUSEMOVE:
+            if self.drawing == True:
+                cv2.line(self.mask, (self.pt1_x, self.pt1_y), (x, y), color=self.color, 
+                         thickness=self.thickness)
+                self.pt1_x, self.pt1_y = x, y
+
+        elif event == cv2.EVENT_LBUTTONUP:
+            self.drawing = False
+            cv2.line(self.mask, (self.pt1_x, self.pt1_y), (x, y), color=self.color, 
+                     thickness=self.thickness)
+
+        self.display = cv2.bitwise_and(self.img, self.img, mask=self.mask)     
+
+    def displayWindow(self):
+        cv2.namedWindow(self.title)
+        if self.func != None:
+            cv2.setMouseCallback(self.title, self.func)
+
+        while True:
+            cv2.imshow(self.title, self.display)
+            key = cv2.waitKey(1)
+            
+            # Change cursor size.
+            if key == ord('w'):
+                self.thickness = min(self.thickness + 5, 100)
+            elif key == ord('s'):
+                self.thickness = max(self.thickness - 5, 1)
+
+            if key == ord('q') or key == ord('Q'):
+                cv2.destroyWindow(self.title) 
+                break 
