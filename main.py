@@ -122,6 +122,54 @@ def getFrameFromVid(vidPath, time):
     ret, frame = cap.read()
     return frame
 
+def getRange(x, padding=0):
+    xMin = np.min(x)
+    xMax = np.max(x)
+    xRange = xMax - xMin
+    return xMin - xRange * padding, xMax + xRange * padding
+
+#################
+#   Contours    #
+#################
+
+def displayContours(cnts, frameShape):
+    blank = np.zeros(frameShape)
+    cv2.drawContours(blank, cnts, -1, (0,0,255), 1)
+    showImg(blank)
+
+def drawContours(cnts, frame, color=(0,0,255), thickness=3):
+    frameCopy = frame.copy()
+    cv2.drawContours(frameCopy, cnts, -1, color, thickness)
+    return frameCopy
+
+def getContourCentre(c):
+    M = cv2.moments(c)
+    cX = int((M["m10"] / M["m00"]))
+    cY = int((M["m01"] / M["m00"]))
+    return cX, cY
+
+def drawOnCvImage(pts, imgSize=1000, padding=0.2):
+    pts = np.array(pts)
+    pts[:,0] -= pts[:,0].min()
+    pts[:,1] -= pts[:,1].min()
+
+    xSpan = pts[:,0].max()
+    ySpan = pts[:,1].max()
+
+    scalingDim = max(xSpan, ySpan)
+    scale = imgSize*(1-2*padding)/scalingDim
+    pts *= scale
+    pts += imgSize*padding
+
+    pts = np.array(pts, dtype=np.int32)
+    imgWidth = pts[:,0].max() + round(imgSize*padding)
+    imgHeight = pts[:,1].max() + round(imgSize*padding)
+    cnts = [pts]
+    blank = np.zeros((imgHeight, imgWidth)).astype(np.uint8)
+    
+    cv2.drawContours(blank, cnts, -1, 255, -1)
+    return blank
+
 ###############################
 #   Circle/Ellipse Fitting    #
 ###############################

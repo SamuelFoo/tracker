@@ -208,12 +208,6 @@ def getTaitBryanAngles(r1, r2, theta1, theta2,
     p1, p2= getPositionVectors(r1, r2, theta1, theta2)
     p1_dt, p2_dt = getPositionVectors(r1_dt, r2_dt, theta1_dt, theta2_dt)
 
-def getContourCentre(c):
-    M = cv2.moments(c)
-    cX = int((M["m10"] / M["m00"]))
-    cY = int((M["m01"] / M["m00"]))
-    return cX, cY
-
 class SelectionWindow():
 
     def __init__(self, title, frame):
