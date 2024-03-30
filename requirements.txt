@@ -1,5 +1,3 @@
-pyyaml
-scikit-image
-skan
-networkx
-libpysal
+opencv-contrib-python
+numpy
+imutils
